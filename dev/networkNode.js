@@ -49,7 +49,7 @@ app.post('/register-and-broadcast-node', (req, res) => {
     if (bitcoin.netWorkNodes.indexOf(newNodeUrl) == -1) {
         bitcoin.netWorkNodes.push(newNodeUrl);
     }
-    const regNodesPromises=[];
+    const regNodesPromises = [];
     bitcoin.netWorkNodes.forEach(networkNodeUrl => {
         const requestOptions = {
             uri: networkNodeUrl + '/register-node',
@@ -61,18 +61,49 @@ app.post('/register-and-broadcast-node', (req, res) => {
         }
         regNodesPromises.push(rp(requestOptions));
     });
-    Promise.all(regNodesPromises).then(data=>{
-        console.log(data);
+    Promise.all(regNodesPromises).then(data => {
+        const bulkRegisterOptions = {
+            uri: newNodeUrl + 'register-nodes-bulk',
+            method: 'POST',
+            body: {
+                allNetworkNodes: [...bitcoin.netWorkNodes, bitcoin.currentNodeUrl]
+            },
+            json: true
+        }
+        return rp(bulkRegisterOptions);
+
+    }).then(data => {
+        res.json({
+            note: 'new node registered with network'
+        });
     })
 });
 
 //register a node with network
 app.post('/register-node', (req, res) => {
-
+    const newNodeUrl = req.body.newNodeUrl;
+    const nodeNotAlreadyPresent = bitcoin.netWorkNodes.indexOf(newNodeUrl) == -1;
+    const notCurrentNode = bitcoin.currentNodeUrl !== newNodeUrl;
+    if (nodeNotAlreadyPresent && notCurrentNode) {
+        bitcoin.netWorkNodes.push(newNodeUrl);
+    }
+    res.json({
+        note: 'new node registered successfully'
+    });
 });
 
 app.post('/register-nodes-bulk', (req, res) => {
-
+    const allNetworkNodes = req.body.allNetworkNodes;
+    allNetworkNodes.forEach(networkNodeUrl => {
+        const nodeNotAlreadyPresent = bitcoin.netWorkNodes.indexOf(networkNodeUrl) == -1;
+        const notCurrentNode = bitcoin.currentNodeUrl !== networkNodeUrl;
+        if (nodeNotAlreadyPresent && notCurrentNode) {
+            bitcoin.netWorkNodes.push(networkNodeUrl);
+        }
+    });
+    res.json({
+        note: 'bulk registration successfull'
+    });
 });
 
 //server running
