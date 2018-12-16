@@ -33,18 +33,17 @@ Blockchain.prototype.createNewTransaction = function (amount, sender, recipient)
         amount: amount,
         sender: sender,
         recipient: recipient,
-        transactionId:uuid().split('-').join('')
+        transactionId: uuid().split('-').join('')
     }
     // this.pendingTransactions.push(newTransaction);
     // return this.getLastBlock()['index'] + 1;
     return newTransaction;
 }
 
-Blockchain.prototype.addTransactionToPendingTransactions=function(transactionObj){
-this.pendingTransactions.push(transactionObj);
-return this.getLastBlock()['index']+1;
+Blockchain.prototype.addTransactionToPendingTransactions = function (transactionObj) {
+    this.pendingTransactions.push(transactionObj);
+    return this.getLastBlock()['index'] + 1;
 }
-
 
 Blockchain.prototype.hashBlock = function (previousBlockHash, currentBlockData, nonce) {
     const dataAsString = previousBlockHash + nonce.toString() + JSON.stringify(currentBlockData);
@@ -68,5 +67,46 @@ Blockchain.prototype.proofOfWork = function (previousBlockHash, currentBlockData
     }
     return nonce;
 }
+/*
+consensus alogrith is a way to agree upon data in the blockchain is valid
+ longest chain rule is a consensus algorithm
 
-module.exports = Blockchain;
+this algorithm takes the length of the current blockchain and compares it with the length of bc on all other blockchains
+if it finds a longer chain than the current block chain it replaces the bc eith the longest bc
+the longest chain
+ */
+
+Blockchain.prototype.chainIsValid = function (blockchain) {
+    let validChain = true;
+    for (let i = 1; i < blockchain.length; i++) {
+        const currentBlock = blockchain[i];
+        const prevBlock = blockchain[i - 1];
+        const blockHash = this.hashBlock(prevBlock.hash,
+            {
+                transactions: currentBlock.transactions,
+                index: currentBlock.index
+            },
+            currentBlock.nonce
+        );
+        if (blockHash.substring(0, 4) !== '0000') {
+            validChain = false;
+        }
+        if (currentBlock.previousBlockHash !== prevBlock.hash) {
+            //chain is invalid  
+            validChain = false;
+        }
+    }
+    const genesisBlock = blockchain[0];
+    const correctNonce = genesisBlock.nonce === '100';
+    const correPreviousHash = genesisBlock.previousBlockHash === '0';
+    const correctHash = genesisBlock.hash === '0';
+    const correctTransaction = genesisBlock.transactions.length === 0;
+    if (correctNonce || correPreviousHash || correctHash || correctTransaction) {
+        // console.log('correctNonce',correctNonce);
+        // console.log();
+        validChain = false;
+    }
+    return validChain;
+}
+
+module.exports = Blockchain;  

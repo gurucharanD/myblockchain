@@ -40,12 +40,39 @@ app.get('/mine', (req, res) => {
     }
     const nonce = bitcoin.proofOfWork(previousBlockHash, currentBlockData);
     const blockhash = bitcoin.hashBlock(previousBlockHash, currentBlockData, nonce);
-    bitcoin.createNewTransaction(12.5, "00", nodeAddress);
+    //bitcoin.createNewTransaction(12.5, "00", nodeAddress);
     const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockhash);
-    res.json({
-        note: "New Block Mined Successfully",
-        block: newBlock
+    const requestPromises = [];
+    bitcoin.netWorkNodes.forEach(networkNodeUrl => {
+        const requestOptions = {
+            uri: networkNodeUrl + '/receive-new-block',
+            method: 'POST',
+            body: { newBlock: newBlock },
+            json: true
+        };
+        requestPromises.push(rp(requestOptions));
     });
+    Promise.all(requestPromises)
+        .then(data => {
+            //bitcoin.createNewTransaction(12.5, "00", nodeAddress);
+            const requestOptions = {
+                uri: bitcoin.currentNodeUrl + '/transaction/broadcast',
+                method: 'POST',
+                body: {
+                    amount: 12.5,
+                    sender: "00",
+                    recipient: nodeAddress
+                },
+                json: true
+            };
+            return rp(requestOptions);
+        })
+        .then(data => {
+            res.json({
+                note: "New Block Mined and broadcasted Successfully",
+                block: newBlock
+            });
+        });
 });
 
 //register a node and broadcast that to entire network
@@ -92,9 +119,9 @@ app.post('/register-and-broadcast-node', (req, res) => {
 app.post('/register-node', (req, res) => {
     const newNodeUrl = req.body.newNodeUrl;
     const nodeNotAlreadyPresent = bitcoin.netWorkNodes.indexOf(newNodeUrl) == -1;
-    const notCurrentNode = bitcoin.currentNodeUrl !== newNodeUrl ? true :false;
-    console.log('nodeNotAlreadyPresent',nodeNotAlreadyPresent);
-        console.log('notCurrentNode',notCurrentNode);
+    const notCurrentNode = bitcoin.currentNodeUrl !== newNodeUrl ? true : false;
+    console.log('nodeNotAlreadyPresent', nodeNotAlreadyPresent);
+    console.log('notCurrentNode', notCurrentNode);
     if (nodeNotAlreadyPresent && notCurrentNode) {
         bitcoin.netWorkNodes.push(newNodeUrl);
     }
@@ -107,9 +134,9 @@ app.post('/register-nodes-bulk', (req, res) => {
     const allNetworkNodes = req.body.allNetworkNodes;
     allNetworkNodes.forEach(networkNodeUrl => {
         const nodeNotAlreadyPresent = bitcoin.netWorkNodes.indexOf(networkNodeUrl) == -1;
-        const notCurrentNode = bitcoin.currentNodeUrl !== networkNodeUrl ? true :false;
-        console.log('nodeNotAlreadyPresent',nodeNotAlreadyPresent);
-        console.log('notCurrentNode',notCurrentNode);
+        const notCurrentNode = bitcoin.currentNodeUrl !== networkNodeUrl ? true : false;
+        console.log('nodeNotAlreadyPresent', nodeNotAlreadyPresent);
+        console.log('notCurrentNode', notCurrentNode);
         if (nodeNotAlreadyPresent && notCurrentNode) {
             bitcoin.netWorkNodes.push(networkNodeUrl);
         }
@@ -129,7 +156,7 @@ app.post('/transaction/broadcast', (req, res) => {
             method: 'POST',
             body: newTransaction,
             json: true
-        }
+        };
         requestPromises.push(rp(requestOptions));
     })
     Promise.all(requestPromises)
@@ -138,9 +165,29 @@ app.post('/transaction/broadcast', (req, res) => {
                 note: 'transaction created and broadcasted successfully'
             });
         });
-})
+});
 
-//server running
+app.post('/receive-new-block', (req, res) => {
+    const newBlock = req.body.newBlock;
+    const lastBlock = bitcoin.getLastBlock();
+    const correctHash = lastBlock.hash === newBlock.previousBlockHash ? true : false;
+    const correctIndex = lastBlock['index'] + 1 === newBlock['index'] ? true : false;
+    if (correctIndex && correctHash) {
+        bitcoin.chain.push(newBlock);
+        bitcoin.pendingTransactions = [];
+        res.json({
+            note: 'new block received and accepted',
+            newBlock: newBlock
+        });
+    } else {
+        res.json({
+            note: 'new block rejected',
+            newBlock: newBlock
+        });
+    }
+});
+
+//server running 
 app.listen(port, () => {
     console.log(`server running on ${port}`);
 });
